@@ -472,6 +472,37 @@ fits a reasonable schedule once it's really deployed.
 
 ### Step 9: Production considerations — _pending_
 
+### Step 9 sketch, carried over from the single-store README — 2026-10-23
+
+This was originally written in `README.md`'s "How this would be used in a
+business" section, back when that notebook was the only one in the repo.
+Moved here (not deleted) during a README rewrite for length — it's a rough
+first draft of Step 9, not a decision, and stays `_pending_` above until
+Step 9 is actually worked through properly:
+
+1. **Scheduled batch job.** Each night or week, the pipeline pulls the latest
+   sales, refreshes the model and forecasts the next six weeks for every
+   store. Extrapolating the single-store backtest's fit times linearly across
+   all 1,115 stores (a rough estimate, not a measured one) puts XGBoost at
+   roughly an hour of nightly fit time versus Prophet's ~10 minutes — needs
+   validating against an actual multi-store run (Step 8) before it shapes the
+   batch window.
+2. **Forecast table.** Results are written to a database table (store, date,
+   forecast, lower and upper range). This table is the product every
+   downstream user reads from.
+3. **Downstream use.**
+   - *Operational systems:* forecasts feed stock ordering, staff rotas and
+     budgets, with planners reviewing exceptions rather than every number.
+   - *Dashboard:* store managers, planners and finance see the next six weeks
+     with the uncertainty range, and forecast vs. actual for recent weeks.
+4. **Accuracy monitoring.** Each week, last week's forecasts are compared
+   with actual sales. If error rises above an agreed threshold, the model is
+   reviewed or retrained.
+
+The uncertainty range matters as much as the forecast itself: managers would
+staff for the busy end of the range, and stock planners would set safety
+stock from it.
+
 ### Scope decision: stop after Step 5 + a lightweight Step 7 — 2026-10-23
 
 **This project's goal is a CV/portfolio writeup, not an actual production
