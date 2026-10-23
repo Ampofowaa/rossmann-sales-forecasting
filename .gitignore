@@ -1,0 +1,32 @@
+# Virtual environment
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Model artifacts (regenerate by rerunning notebooks)
+*.pkl
+
+# Large dataset files (public Kaggle download, not redistributed here)
+data/rossmann/train.csv
+data/rossmann/test.csv
+data/rossmann/store.csv
+data/rossmann/sample_submission.csv
+data/rossmann/dataset_description.md
+
+# Unused legacy dataset, kept locally but not tracked
+sales_data.csv
+
+# Internal planning doc, not for public repo
+RECOMMENDATIONS.md
+demand_forecasting_project_plan.pdf
+
+# Claude
+.claude
+
+# Future-work guide notebook, kept locally but not tracked
+forecast_lstm.ipynb
