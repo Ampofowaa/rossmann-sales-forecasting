@@ -1,32 +1,45 @@
 # Retail Sales Forecasting: Model Comparison and Backtest
 
-Picks the most accurate, cost-effective method for forecasting daily store sales six weeks ahead, backed by a 6-window rolling backtest rather than a single, possibly-lucky train/test split.
+Finds the most accurate, cost-effective model for forecasting daily store sales six weeks ahead, validated with a 6-window rolling backtest instead of one train/test split.
 
 ![MAPE per model, per fold](docs/images/mape_by_fold.png)
 
-**Problem.** Retailers plan staffing and stock roughly six weeks ahead. Picking the wrong forecasting method means overstaffing or understocking, and it isn't obvious upfront which common approach — classical statistics, Prophet, gradient-boosted trees — actually holds up over time rather than just looking good once.
+**Problem.** Retailers plan staffing and stock roughly six weeks ahead. Pick the wrong method and you over- or understaff — and it isn't obvious upfront which approach (classical statistics, Prophet, gradient-boosted trees) actually holds up over time, not just once.
 
-**Approach.** Backtested five methods (Seasonal Naive, Prophet, XGBoost, AutoARIMA, AutoETS) across six rolling 42-day windows, each retrained on all prior data — not one split. Fed every model the **full calendar, including closed days**, plus known-in-advance `Promo`/`SchoolHoliday`/`StateHoliday` regressors — this alone flipped AutoETS from losing to the baseline every window to beating it every window. Forecast XGBoost **recursively**: lag features come only from its own prior predictions, never a fold's real future sales.
+**Approach.** Backtested five methods across six rolling 42-day windows, each retrained on all prior data — not one split. Fed every model the **full calendar, including closed days**, plus known-in-advance `Promo`/`SchoolHoliday`/`StateHoliday` regressors — this alone flipped AutoETS from losing every window to beating every window. Forecast XGBoost **recursively**: lag features come only from its own prior predictions, never a fold's real future sales.
 
 **Result.**
 
 | Model | Mean MAPE | Beats baseline | Mean fit time/store |
 |---|---|---|---|
-| XGBoost | 11.14% | 6 of 6 windows | 3.2s |
-| Prophet | 12.04% | 6 of 6 windows | 0.6s |
-| AutoARIMA | 17.96% | 6 of 6 windows | 65.2s |
+| XGBoost | 11.14% | 6 of 6 windows | 1.8s |
+| Prophet | 12.04% | 6 of 6 windows | 0.4s |
+| AutoARIMA | 17.96% | 6 of 6 windows | 37.9s |
 | Seasonal Naive (baseline) | 25.25% | — | ~0s |
 
-XGBoost wins on accuracy; Prophet is the cost-conscious alternative, ~5x cheaper to retrain. Full result, WAPE check and recommendation: [Findings](#findings).
+XGBoost wins on accuracy; Prophet is the cost-conscious alternative, ~4x cheaper to retrain. Full result, uncertainty check and recommendation: [Findings](#findings).
 
 ## Findings
 
-- **Every model now beats the seasonal-naive baseline in all 6 of 6 windows**, including AutoETS — which lost to the baseline in every window before the full-calendar + exogenous-feature fix above.
-- **WAPE (total error ÷ total actual sales) mostly confirms MAPE**, with one exception: the hardest window (Christmas/New Year) scores *worse* under WAPE for most models, because it weights errors by sales value — that window's problem is under/over-shooting the size of the December peak, not noisy low-value days.
-- **AutoARIMA isn't worth its cost.** Its accuracy (17.96 MAPE) barely beats AutoETS's (18.02), for roughly two orders of magnitude more fit time.
-- **Recommendation:** use **XGBoost** as the default — it wins on both accuracy and full-window consistency. Treat **Prophet** as the cost-conscious alternative, worth it once nightly compute cost across many stores becomes a constraint (see Scaling below). Skip AutoARIMA; AutoETS is the better `statsforecast` option if a fast, low-dependency model is ever needed.
+**Accuracy.** Every model beats the seasonal-naive baseline in all 6 of 6 windows, including AutoETS — which lost to the baseline every window before the full-calendar + exogenous-feature fix above. WAPE mostly confirms MAPE, except the Christmas/New Year window, where it's worse (mis-sized peak, not noisy low-value days). **XGBoost wins** (11.14 MAPE); **Prophet is the cheaper runner-up** (12.04 MAPE, ~4x faster to fit); **AutoARIMA isn't worth its cost** (17.96 MAPE, barely beats AutoETS's 18.02, for ~100x more fit time).
 
-Full per-fold breakdown and the fair-testing protocol (no leakage, fixed seeds, matched train/test windows across all five models): see [`single_store_forecast.ipynb`](single_store_forecast.ipynb).
+**Uncertainty.** A point forecast alone doesn't say how much safety stock or staffing buffer to hold for the busy end of the range, so each model's 80%/95% prediction intervals were scored the same way — open days, all 6 folds — for coverage, width, and Winkler (interval) score:
+
+| Model | 80% coverage | 95% coverage | Mean width (80%) | Winkler score (80%) |
+|---|---|---|---|---|
+| Prophet | 72% | 90% | 1,536 | 2,887 |
+| XGBoost | 77% | 87% | 1,871 | 3,745 |
+| AutoETS | 84% | 92% | 3,136 | 4,740 |
+| AutoARIMA | 67% | 80% | 1,980 | 4,836 |
+| Seasonal Naive | 94% | 100% | 7,531 | 7,987 |
+
+**How to read it:** coverage near the target means the band can be trusted; well below means the model is overconfident (band too narrow); well above means it's wider than it needs to be. For safety stock or staffing, size against the **upper bound** — understating it matters in practice. Example: XGBoost's 95% interval should miss the actual value only 1 day in 20; in the backtest it missed roughly 1 day in 8 (87% vs. 95% coverage) — stock sized to its 95% upper bound would run short far more often than planned.
+
+**AutoARIMA is also the worst-calibrated model** — 13–15pp undercoverage at both levels, on top of being slowest and least accurate; its parametric (Gaussian) interval assumes steadier residual behaviour than promo/holiday-driven demand swings actually produce. **AutoETS is the best-calibrated.** XGBoost's conformal interval (calibrated on prior folds' own backtest errors, bucketed by horizon week) holds at 80% but undercovers at 95%, where its calibration pool is thin. **Prophet wins on Winkler score outright** — but that's tight bands outscoring a real coverage gap, not evidence of good calibration.
+
+**Recommendation:** use **XGBoost** as the default — it wins on accuracy and full-window consistency. For a 95% safety-stock buffer specifically, trust **AutoETS**'s interval over XGBoost's own. Skip **AutoARIMA** — it loses on cost, accuracy, and calibration alike.
+
+Full per-fold breakdown, interval methodology, and the fair-testing protocol (no leakage, fixed seeds, matched train/test windows across all five models): see [`single_store_forecast.ipynb`](single_store_forecast.ipynb), section 5.
 
 ## Limitations & next steps
 
