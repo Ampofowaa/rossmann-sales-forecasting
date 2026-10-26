@@ -11,6 +11,10 @@ __pycache__/
 # Model artifacts (regenerate by rerunning notebooks)
 *.pkl
 
+# Disk-cached intermediate CV results (multi_store_forecast.ipynb) - regenerate
+# by deleting the relevant file and rerunning
+cache/
+
 # Large dataset files (public Kaggle download, not redistributed here)
 data/rossmann/train.csv
 data/rossmann/test.csv
@@ -30,3 +34,8 @@ demand_forecasting_project_plan.pdf
 
 # Future-work guide notebook, kept locally but not tracked
 forecast_lstm.ipynb
+
+# Multi-store work, kept locally but not tracked until it has results
+MULTISTORE_PLAN.md
+multi_store_forecast.ipynb
+multi_store_eda_deepdive.ipynb

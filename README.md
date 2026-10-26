@@ -28,40 +28,13 @@ XGBoost wins on accuracy; Prophet is the cost-conscious alternative, ~5x cheaper
 
 Full per-fold breakdown and the fair-testing protocol (no leakage, fixed seeds, matched train/test windows across all five models): see [`single_store_forecast.ipynb`](single_store_forecast.ipynb).
 
-## Scaling to all 1,115 stores (in progress)
-
-The single-store result above raises a real multi-store question: compute cost
-(AutoARIMA's ~65s/store fit, XGBoost's ~3.2s/store retrain) stops being a
-rounding error once it's multiplied by 1,115 stores, nightly. `multi_store_forecast.ipynb`
-works through that, tracked step by step in `MULTISTORE_PLAN.md`:
-
-- Reuses the same full-calendar + exogenous-feature approach, validated against
-  real data-quality issues found along the way (a genuine 184-day gap shared by
-  181 stores, not just routine closed-day handling).
-- Three-level EDA (group aggregate, per-store distributions, representative
-  spot-checks) to check whether grouping stores by `StoreType`/`Assortment` is
-  actually justified by the data, rather than assumed.
-- Extends the single-store comparison to seven candidates: the four classical
-  models above, Prophet (per-store), and XGBoost in three pooling strategies —
-  global (one model, all stores, store ID as a feature), per-group, and
-  per-store — backtested with the same rolling-origin CV protocol and ranked by
-  RMSPE, Rossmann's own competition metric, with relative compute cost reported
-  alongside accuracy rather than as an afterthought.
-- Deliberately scoped to the model-selection decision, not a full production
-  deployment (see `MULTISTORE_PLAN.md`'s decision log for the reasoning) — a
-  separate project already demonstrates end-to-end deployment.
-
-See `MULTISTORE_PLAN.md` for the current step and the reasoning behind each
-decision along the way.
-
 ## Limitations & next steps
 
-- **One store.** This backtest alone may not generalise across store types and locations — that's exactly what the multi-store work above tests.
+- **One store.** This backtest alone may not generalise across store types and locations. Next: extend the comparison to all 1,115 stores, weighing XGBoost's accuracy against its retraining cost at scale.
 - **Six test windows** is enough to show every model now beats the baseline consistently, not from one lucky window — but still too few folds for a rigorous confidence interval.
 - **Promo/holiday schedules are assumed fully known at forecast time.** True in this backtest (Rossmann's historical flags); in a real deployment, promotions scheduled weeks ahead can still change.
 - **Prophet can predict slightly negative sales on closed days** (additive regression, no floor at 0) — harmless here since closed days are excluded from scoring, but would need clamping to 0 if used directly.
 - **Training-time figures are single-machine, single-run wall-clock measurements**, a directional signal rather than a precise benchmark.
-- With another week, I'd finish the multi-store CV comparison above, add a couple of regression tests (e.g. the rolling backtest windows never overlap, RMSPE excludes zero-sales days), and curate `requirements.txt` down from a full `pip freeze` to just the libraries this project actually imports.
 
 ## Run it
 
@@ -80,8 +53,6 @@ Prophet's `cmdstanpy` backend needs a one-time compiled-model build on first ins
 ```
 .
 ├── single_store_forecast.ipynb   # main analysis: model comparison & backtest
-├── multi_store_forecast.ipynb    # scaling to all 1,115 stores (in progress)
-├── MULTISTORE_PLAN.md            # decision log for the multi-store work
 ├── docs/images/                  # chart exported from the notebook, used above
 ├── requirements.txt
 ├── LICENSE
